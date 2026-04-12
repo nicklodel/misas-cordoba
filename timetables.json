@@ -46,7 +46,7 @@
     "parroquia_iglesia": "Iglesia Ntra. Sra. de la Piedad (Plza. las Cañas)",
     "dias_laborables": "",
     "sabados_visperas_festivos": "",
-    "domingos_festivos": "",
+    "domingos_festivos": "De octubre a junio: 12:00",
     "address": "Plaza de las Cañas, San Pedro, Santiago, Distrito Centro, Córdoba, Andalucía, España"
   },
   {
@@ -74,9 +74,9 @@
     "id": 8,
     "zona": "ZONA CATEDRAL CASCO HISTÓRICO",
     "parroquia_iglesia": "Monasterio de Sta. Marta (MM. Jerónimas)",
-    "dias_laborables": "13:00",
+    "dias_laborables": "",
     "sabados_visperas_festivos": "",
-    "domingos_festivos": ""
+    "domingos_festivos": "13:00"
   },
   {
     "temporada": "Verano",
@@ -234,7 +234,7 @@
     "parroquia_iglesia": "Colegio de las Esclavas (Plza. S. Juan)",
     "dias_laborables": "",
     "sabados_visperas_festivos": "",
-    "domingos_festivos": "",
+    "domingos_festivos": "13:00 (Hasta 25 de mayo y desde 2 de octubre)",
     "address": "Alminar de San Juan, Calle Barroso, El Salvador y La Compañía, Santiago, Distrito Centro, Córdoba, Andalucía, 14003, España"
   },
   {
@@ -291,11 +291,11 @@
     "temporada": "Verano",
     "id": 30,
     "zona": "ZONA CENTRO",
-    "parroquia_iglesia": "Monasterio de San Miguel – Esclavos de la Eucaristía",
-    "dias_laborables": "",
+    "parroquia_iglesia": "Monasterio de San Miguel – Esclavos de la Eucaristía (Antiguo Císter)",
+    "dias_laborables": "19:00 (salvo agosto)",
     "sabados_visperas_festivos": "",
-    "domingos_festivos": "",
-    "address": "Iglesia de San Miguel, Plaza de San Miguel, San Miguel - Capuchinos, Santiago, Distrito Centro, Córdoba, Andalucía, 14008, España"
+    "domingos_festivos": "11:00 (salvo agosto)",
+    "address": "C. Carbonell y Morand, 16, Centro, 14001 Córdoba"
   },
   {
     "temporada": "Verano",
@@ -332,9 +332,9 @@
     "id": 34,
     "zona": "ZONA CENTRO",
     "parroquia_iglesia": "Ntra. Sra. de la Merced",
-    "dias_laborables": "",
-    "sabados_visperas_festivos": "",
-    "domingos_festivos": "",
+    "dias_laborables": "20:00 (excepto agosto)",
+    "sabados_visperas_festivos": "20:00 (julio y agosto 21:00)",
+    "domingos_festivos": "11:00 - 13:30 - 20:00 (julio y agosto 11:00 - 12:00)",
     "address": "Parroquia Nuestra Señora de la Merced, Plaza de Colón, s/n, Ollerías, Santiago, Distrito Centro, Córdoba, Andalucía, 14001, España"
   },
   {
