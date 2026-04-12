@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Geocodificador · Misas Córdoba</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#f5f5f4; }
+    .row-ok      { background:#f0fdf4; }
+    .row-error   { background:#fef2f2; }
+    .row-pending { background:#fafafa; }
+    .row-active  { background:#eff6ff; }
+    input[type=number] { -moz-appearance:textfield; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
+  </style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+  <!-- Header -->
+  <div class="bg-amber-800 text-white rounded-2xl px-6 py-5">
+    <h1 class="text-2xl font-bold">Geocodificador de Iglesias</h1>
+    <p class="text-amber-200 text-sm mt-1">Búsqueda inteligente con múltiples estrategias · Revisa los resultados · Exporta el JSON actualizado</p>
+  </div>
+
+  <!-- Controls -->
+  <div class="bg-white rounded-xl shadow-sm border border-stone-100 px-6 py-4 flex flex-wrap items-center gap-4">
+    <button id="btn-start" class="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-lg font-semibold text-sm transition-colors">
+      ▶ Iniciar geocodificación
+    </button>
+    <button id="btn-pause" disabled class="px-5 py-2 bg-stone-200 text-stone-500 rounded-lg font-semibold text-sm cursor-not-allowed">
+      ⏸ Pausar
+    </button>
+    <button id="btn-export" disabled class="px-5 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+      ⬇ Exportar timetables.json
+    </button>
+    <div class="ml-auto text-sm text-stone-500 text-right">
+      <span id="progress-text">0 / 101</span>
+      &nbsp;·&nbsp;
+      <span id="ok-count" class="text-green-700 font-medium">0 OK</span>
+      &nbsp;·&nbsp;
+      <span id="err-count" class="text-red-600 font-medium">0 sin resultado</span>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="w-full bg-stone-200 rounded-full h-2">
+    <div id="progress-bar" class="bg-amber-600 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+  </div>
+
+  <!-- Rate limit warning -->
+  <div id="rate-warn" class="hidden bg-orange-50 border border-orange-300 text-orange-800 text-sm rounded-xl px-4 py-3">
+    ⚠️ <strong>Posible rate limit de Nominatim</strong> — Se han detectado muchas respuestas vacías seguidas. Esperando 10 segundos antes de continuar. Si el problema persiste, pulsa <strong>⏸ Pausar</strong>, espera un minuto y luego <strong>▶ Continuar</strong>.
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-stone-50 border-b border-stone-200 text-xs font-semibold text-stone-500 uppercase">
+        <tr>
+          <th class="px-3 py-3 text-left w-8">#</th>
+          <th class="px-3 py-3 text-left">Iglesia</th>
+          <th class="px-3 py-3 text-left w-24">Zona</th>
+          <th class="px-3 py-3 text-left w-28">Latitud</th>
+          <th class="px-3 py-3 text-left w-28">Longitud</th>
+          <th class="px-3 py-3 text-left w-32">Estado</th>
+          <th class="px-3 py-3 text-left w-16">Maps</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <p class="text-xs text-stone-400 text-center">
+    Datos: <a href="https://nominatim.openstreetmap.org" target="_blank" class="underline">Nominatim / OpenStreetMap</a>
+    · 1 petición/segundo · Búsqueda restringida al área de Córdoba
+  </p>
+</div>
+
+<script>
+// ─── CÓRDOBA BOUNDING BOX (for viewbox constraint) ────────────────────────────
+// west, south, east, north
+const BBOX = '-4.95,37.78,-4.63,37.97';
+
+// ─── ABBREVIATION EXPANDER ────────────────────────────────────────────────────
+function expandAbbr(s) {
+  return s
+    .replace(/\bNtra\.\s*Sra\.\b/gi,  'Nuestra Señora')
+    .replace(/\bNtro\.\s*Sr\.\b/gi,   'Nuestro Señor')
+    .replace(/\bSto\.\b/gi,            'Santo')
+    .replace(/\bSta\.\b/gi,            'Santa')
+    .replace(/\bS\.\s(?=[A-Z])/g,      'San ')
+    .replace(/\bPP\.\s*/g,             '')
+    .replace(/\bMM\.\s*/g,             '')
+    .replace(/\bHnas\.\s*/g,           '')
+    .replace(/\bBº\b/gi,               'Barrio')
+    .replace(/\bUrb\.\s*/gi,           'Urbanización ')
+    .replace(/\bPlza\.\s*/gi,          'Plaza ')
+    .replace(/\bAvda\.\s*/gi,          'Avenida ')
+    .replace(/\bC\/\s*/g,              'Calle ')
+    .replace(/\bCtra\.\s*/gi,          'Carretera ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// ─── QUERY BUILDER ───────────────────────────────────────────────────────────
+/**
+ * Generates an ordered list of candidate search queries for a church.
+ * Each query is tried in order until one returns a result inside Córdoba.
+ */
+function buildQueries(church) {
+  const raw  = church.name;
+  const queries = [];
+
+  // 1. Extract address hint from parentheses (C/, Plza., Calle, etc.)
+  const addrMatch = raw.match(/\(([^)]*(?:C\/|Plza\.|Avda\.|Calle|Plaza|Paseo|Carretera|Ctra\.)[^)]*)\)/i);
+  if (addrMatch) {
+    const addr = expandAbbr(addrMatch[1]);
+    queries.push(`${addr}, Córdoba`);
+  }
+
+  // 2. Extract location-only hint from parentheses (neighbourhood, landmark)
+  //    e.g. "(Parque Cruz Conde)", "(Huerta de la Reina)"
+  const locMatch = raw.match(/\(([A-ZÁÉÍÓÚÑ][^)]{4,40})\)/);
+  if (locMatch && !addrMatch) {
+    const loc = expandAbbr(locMatch[1]);
+    // Only useful if it looks like a place name, not a religious order abbreviation
+    if (!/PP\.|MM\.|Hnas\.|Residencia/i.test(locMatch[1])) {
+      queries.push(`${loc}, Córdoba`);
+    }
+  }
+
+  // 3. Stripped clean name (no parentheses, abbreviated expanded) + Córdoba
+  const cleanNoParens = expandAbbr(raw.replace(/\([^)]*\)/g, '').trim());
+  queries.push(`${cleanNoParens}, Córdoba`);
+
+  // 4. Key religious dedication: extract "San X", "Santa X", "Nuestro/Nuestra X"
+  //    from the expanded name
+  const expanded = expandAbbr(raw.replace(/\([^)]*\)/g, ''));
+  const dedMatch = expanded.match(
+    /\b(San\s+\w+|Santa\s+\w+|Santo\s+\w+|Santos?\s+\w+|Nuestra\s+Señora\s+de\s+\w+(?:\s+\w+)?|Nuestro\s+Señor\s+\w+(?:\s+\w+)?)/i
+  );
+  if (dedMatch) {
+    const ded = dedMatch[1].trim();
+    queries.push(`iglesia ${ded} Córdoba`);
+    queries.push(`parroquia ${ded} Córdoba`);
+    queries.push(`ermita ${ded} Córdoba`);
+  }
+
+  // 5. Just the most distinctive word (longest non-common word)
+  const stopwords = new Set(['de','del','la','las','los','el','y','e','a','o','en','por','con','sin','al','un','una','nuestro','nuestra','señora','señor']);
+  const words = expanded.split(/\s+/).filter(w => w.length > 4 && !stopwords.has(w.toLowerCase()));
+  if (words.length > 0) {
+    // Sort by length descending → most distinctive first
+    words.sort((a,b) => b.length - a.length);
+    queries.push(`iglesia ${words[0]} Córdoba`);
+  }
+
+  // Deduplicate
+  return [...new Set(queries)];
+}
+
+// ─── NOMINATIM FETCH ──────────────────────────────────────────────────────────
+const CBA_LAT = { min: 37.78, max: 37.97 };
+const CBA_LNG = { min: -4.95, max: -4.63 };
+
+function insideCba(lat, lng) {
+  return lat >= CBA_LAT.min && lat <= CBA_LAT.max
+      && lng >= CBA_LNG.min && lng <= CBA_LNG.max;
+}
+
+/** fetch() with a hard timeout — never hangs forever */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Single Nominatim HTTP call — always sleeps BEFORE firing to respect rate limit */
+async function nominatimQuery(query, bounded) {
+  await sleep(1300); // guaranteed 1.3s gap before every request
+  const params = new URLSearchParams({
+    q: query, format: 'json', limit: '3',
+    countrycodes: 'es', viewbox: BBOX, bounded: bounded ? '1' : '0',
+  });
+  try {
+    const res = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/search?${params}`,
+      { headers: { 'Accept-Language': 'es' } }
+    );
+    if (res.status === 429) {
+      // Hard rate limit — show warning, wait 20s, return null
+      document.getElementById('rate-warn').classList.remove('hidden');
+      await sleep(20000);
+      document.getElementById('rate-warn').classList.add('hidden');
+      return null;
+    }
+    const data = await res.json();
+    return data.find(d => insideCba(parseFloat(d.lat), parseFloat(d.lon))) || null;
+  } catch {
+    return null; // timeout or network error — move on
+  }
+}
+
+// ─── CHURCH DATA ─────────────────────────────────────────────────────────────
+const ZONE_SHORT = {
+  "ZONA CATEDRAL CASCO HISTÓRICO":              "Catedral",
+  "ZONA CENTRO":                                "Centro",
+  "ZONA SIERRA":                                "Sierra",
+  "ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE":     "C. Jardín",
+  "ZONA SECTOR SUR":                            "Sector Sur",
+  "ZONA NOROESTE":                              "Noroeste",
+  "ZONA LEVANTE":                               "Levante",
+  "ZONA FUENSANTA – CAÑERO – LEVANTE SUR":      "Fuensanta",
+};
+
+const CHURCHES = [
+  {id:1, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Convento Sta. Cruz (C/ Agustín Moreno)"},
+  {id:2, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Esclavas del Santísimo (Puerta Colodro)"},
+  {id:3, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Hospital Cruz Roja Córdoba"},
+  {id:4, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Juramento de San Rafael Córdoba"},
+  {id:5, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Ntra. Sra. de la Piedad (Plza. las Cañas)"},
+  {id:6, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Jesús Nazareno (C/ Buen Suceso)"},
+  {id:7, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Monasterio de la Encarnación Córdoba"},
+  {id:8, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Monasterio Sta. Marta Córdoba"},
+  {id:9, zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Basilio Córdoba"},
+  {id:10,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Ntra. Sra. del Carmen (Puerta Nueva)"},
+  {id:11,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Pedro Apóstol Córdoba"},
+  {id:12,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Pablo Córdoba"},
+  {id:13,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Catedral de Córdoba"},
+  {id:14,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Agustín Córdoba"},
+  {id:15,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Andrés Apóstol Córdoba"},
+  {id:16,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Cayetano Córdoba"},
+  {id:17,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Francisco Córdoba"},
+  {id:18,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia San Lorenzo Mártir Córdoba"},
+  {id:19,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Catedral Mezquita Córdoba"},
+  {id:20,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Santa Marina Córdoba"},
+  {id:21,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia Santiago Apóstol Córdoba"},
+  {id:22,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Iglesia María Auxiliadora Salesianos Córdoba"},
+  {id:23,zona:"ZONA CATEDRAL CASCO HISTÓRICO",   name:"Siervas de María (C/ Blanco Belmonte)"},
+  {id:24,zona:"ZONA CENTRO",                     name:"Colegio Esclavas del Sagrado Corazón (Plza. San Juan)"},
+  {id:25,zona:"ZONA CENTRO",                     name:"Convento Santo Ángel Capuchinos Córdoba"},
+  {id:26,zona:"ZONA CENTRO",                     name:"Iglesia Cristo Rey Córdoba"},
+  {id:27,zona:"ZONA CENTRO",                     name:"Iglesia El Salvador Córdoba"},
+  {id:28,zona:"ZONA CENTRO",                     name:"Iglesia Hermanas de la Cruz (Plza. Capuchinas)"},
+  {id:29,zona:"ZONA CENTRO",                     name:"Iglesia San Roque (C/ Buen Pastor)"},
+  {id:30,zona:"ZONA CENTRO",                     name:"Monasterio San Miguel Córdoba"},
+  {id:31,zona:"ZONA CENTRO",                     name:"Monasterio Santa Ana Descalzas Córdoba"},
+  {id:32,zona:"ZONA CENTRO",                     name:"Monasterio San Rafael Capuchinas Córdoba"},
+  {id:33,zona:"ZONA CENTRO",                     name:"Iglesia Nuestra Señora de la Esperanza Córdoba"},
+  {id:34,zona:"ZONA CENTRO",                     name:"Iglesia Nuestra Señora de la Merced Córdoba"},
+  {id:35,zona:"ZONA CENTRO",                     name:"Iglesia San Hipólito Córdoba"},
+  {id:36,zona:"ZONA CENTRO",                     name:"Iglesia La Trinidad Córdoba"},
+  {id:37,zona:"ZONA CENTRO",                     name:"Iglesia San Miguel Arcángel Córdoba"},
+  {id:38,zona:"ZONA CENTRO",                     name:"Iglesia San Nicolás de la Villa Córdoba"},
+  {id:39,zona:"ZONA CENTRO",                     name:"Iglesia Santa María Madre de la Iglesia Córdoba"},
+  {id:40,zona:"ZONA CENTRO",                     name:"Iglesia San Jacinto Córdoba"},
+  {id:41,zona:"ZONA SIERRA",                     name:"Betania Jesús Nazareno Córdoba sierra"},
+  {id:42,zona:"ZONA SIERRA",                     name:"Colegio La Salle Córdoba"},
+  {id:43,zona:"ZONA SIERRA",                     name:"Eremitorio El Bañuelo Córdoba"},
+  {id:44,zona:"ZONA SIERRA",                     name:"Ermita San Diego Torreblanca Córdoba"},
+  {id:45,zona:"ZONA SIERRA",                     name:"Casa de Ejercicios San José Córdoba"},
+  {id:46,zona:"ZONA SIERRA",                     name:"Hospital San Juan de Dios Córdoba"},
+  {id:47,zona:"ZONA SIERRA",                     name:"Las Ermitas Córdoba"},
+  {id:48,zona:"ZONA SIERRA",                     name:"Monasterio Visitación Salesas Córdoba"},
+  {id:49,zona:"ZONA SIERRA",                     name:"Trassierra Córdoba"},
+  {id:50,zona:"ZONA SIERRA",                     name:"Linares Córdoba sierra"},
+  {id:51,zona:"ZONA SIERRA",                     name:"Scala Coeli Córdoba"},
+  {id:52,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"parroquia Beato Álvaro Córdoba"},
+  {id:53,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"parroquia Beato Cristóbal Córdoba"},
+  {id:54,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"Cementerio Miraflores Córdoba"},
+  {id:55,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"Hospital Provincial Córdoba"},
+  {id:56,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"Hospital Universitario Reina Sofía Córdoba"},
+  {id:57,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"Iglesia Inmaculada Concepción San Alberto Magno Córdoba"},
+  {id:58,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"parroquia Nuestra Señora Araceli Córdoba"},
+  {id:59,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"iglesia Huerto Córdoba"},
+  {id:60,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"iglesia San Pelagio Córdoba"},
+  {id:61,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"iglesia Santa Cecilia Córdoba"},
+  {id:62,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"iglesia Santa Teresa Ávila Córdoba"},
+  {id:63,zona:"ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE", name:"iglesia Virgen del Camino Córdoba"},
+  {id:64,zona:"ZONA SECTOR SUR",                 name:"iglesia Jesús Obrero Córdoba"},
+  {id:65,zona:"ZONA SECTOR SUR",                 name:"iglesia Sagrada Familia Córdoba"},
+  {id:66,zona:"ZONA SECTOR SUR",                 name:"iglesia San Ignacio Loyola Córdoba"},
+  {id:67,zona:"ZONA SECTOR SUR",                 name:"Iglesia San José Espíritu Santo Córdoba"},
+  {id:68,zona:"ZONA SECTOR SUR",                 name:"Iglesia San Martín de Porres Córdoba"},
+  {id:69,zona:"ZONA SECTOR SUR",                 name:"Iglesia Santa Isabel de Hungría Córdoba"},
+  {id:70,zona:"ZONA SECTOR SUR",                 name:"Iglesia Santa Luisa de Marillac Córdoba"},
+  {id:71,zona:"ZONA NOROESTE",                   name:"Iglesia Inmaculado Corazón de María Miralbaida Córdoba"},
+  {id:72,zona:"ZONA NOROESTE",                   name:"Iglesia Nuestra Señora de la Asunción Parque Figueroa Córdoba"},
+  {id:73,zona:"ZONA NOROESTE",                   name:"Iglesia Nuestra Señora de la Asunción San Roque Córdoba"},
+  {id:74,zona:"ZONA NOROESTE",                   name:"Iglesia Nuestra Señora de Consolación Córdoba"},
+  {id:75,zona:"ZONA NOROESTE",                   name:"Iglesia Nuestra Señora del Carmen Villarrubia Córdoba"},
+  {id:76,zona:"ZONA NOROESTE",                   name:"Iglesia Nuestra Señora del Rosario Electromecánica Córdoba"},
+  {id:77,zona:"ZONA NOROESTE",                   name:"Iglesia San Antonio María Claret Las Palmeras Córdoba"},
+  {id:78,zona:"ZONA NOROESTE",                   name:"Iglesia San Fernando Huerta de la Reina Córdoba"},
+  {id:79,zona:"ZONA NOROESTE",                   name:"Iglesia San Isidro Labrador Higuerón Córdoba"},
+  {id:80,zona:"ZONA NOROESTE",                   name:"Iglesia San Gregorio Magno Higuerón Córdoba"},
+  {id:81,zona:"ZONA NOROESTE",                   name:"Iglesia San Juan Pablo II Córdoba"},
+  {id:82,zona:"ZONA NOROESTE",                   name:"Iglesia Santa Beatriz de Silva Urbanización Azahara Córdoba"},
+  {id:83,zona:"ZONA NOROESTE",                   name:"Iglesia Santa Rafaela María Córdoba"},
+  {id:84,zona:"ZONA NOROESTE",                   name:"Iglesia Santas Margaritas Córdoba"},
+  {id:85,zona:"ZONA NOROESTE",                   name:"Iglesia Santo Cristo Los Mochos Córdoba"},
+  {id:86,zona:"ZONA LEVANTE",                    name:"Iglesia Nuestra Señora de Gracia Trinitarios Córdoba"},
+  {id:87,zona:"ZONA LEVANTE",                    name:"Iglesia Nuestra Señora de la Aurora Córdoba"},
+  {id:88,zona:"ZONA LEVANTE",                    name:"Iglesia San Acisclo Córdoba"},
+  {id:89,zona:"ZONA LEVANTE",                    name:"Iglesia San Antonio de Padua Córdoba"},
+  {id:90,zona:"ZONA LEVANTE",                    name:"Iglesia San Juan de Ávila Córdoba"},
+  {id:91,zona:"ZONA LEVANTE",                    name:"Iglesia Santa Bárbara Cerro Muriano Córdoba"},
+  {id:92,zona:"ZONA LEVANTE",                    name:"Iglesia Santa Victoria El Naranjo Córdoba"},
+  {id:93,zona:"ZONA LEVANTE",                    name:"Iglesia Virgen de Fátima Córdoba"},
+  {id:94,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Iglesia Nuestra Señora de Belén Cañero Córdoba"},
+  {id:95,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Santuario Nuestra Señora de la Fuensanta Córdoba"},
+  {id:96,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Iglesia Nuestra Señora de Linares Córdoba"},
+  {id:97,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Iglesia Nuestra Señora de los Ángeles Alcolea Córdoba"},
+  {id:98,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Iglesia San Rafael Arcángel Córdoba"},
+  {id:99,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR", name:"Iglesia San Vicente Ferrer Córdoba"},
+  {id:100,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR",name:"Iglesia Santa María de Guadalupe Franciscanos Córdoba"},
+  {id:101,zona:"ZONA FUENSANTA – CAÑERO – LEVANTE SUR",name:"Iglesia Santo Ángel Alcolea Córdoba"},
+];
+
+// ─── TABLE BUILD ──────────────────────────────────────────────────────────────
+const coords = {};
+
+function buildTable() {
+  const tbody = document.getElementById('table-body');
+  CHURCHES.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.id        = `row-${c.id}`;
+    tr.className = 'row-pending border-b border-stone-100';
+    tr.innerHTML = `
+      <td class="px-3 py-2 text-stone-400 text-xs">${c.id}</td>
+      <td class="px-3 py-2">
+        <div class="font-medium text-stone-800 text-xs leading-snug">${c.name}</div>
+        <div id="hint-${c.id}" class="text-xs text-stone-400 mt-0.5 hidden"></div>
+      </td>
+      <td class="px-3 py-2 text-xs text-stone-500">${ZONE_SHORT[c.zona] || c.zona}</td>
+      <td class="px-3 py-2">
+        <input id="lat-${c.id}" type="number" step="0.000001" placeholder="–"
+          class="w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+          onchange="onCoordChange(${c.id})"/>
+      </td>
+      <td class="px-3 py-2">
+        <input id="lng-${c.id}" type="number" step="0.000001" placeholder="–"
+          class="w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+          onchange="onCoordChange(${c.id})"/>
+      </td>
+      <td class="px-3 py-2 text-xs" id="status-${c.id}"><span class="text-stone-300">–</span></td>
+      <td class="px-3 py-2">
+        <a id="maps-${c.id}" href="#" target="_blank" rel="noopener" class="text-base hidden" title="Ver en Google Maps">🗺</a>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function onCoordChange(id) {
+  const lat = parseFloat(document.getElementById(`lat-${id}`).value);
+  const lng = parseFloat(document.getElementById(`lng-${id}`).value);
+  if (!isNaN(lat) && !isNaN(lng)) {
+    coords[id] = { lat, lng };
+    setRow(id, 'ok', '✏️ Editado');
+    updateMapsLink(id, lat, lng);
+    updateProgress();
+  }
+}
+
+function setRow(id, state, label, hint) {
+  const tr = document.getElementById(`row-${id}`);
+  const st = document.getElementById(`status-${id}`);
+  tr.className = `row-${state} border-b border-stone-100`;
+  const colors = { ok:'text-green-700', error:'text-red-500', active:'text-blue-500', pending:'text-stone-300' };
+  st.innerHTML = `<span class="${colors[state]||''}">${label}</span>`;
+  if (hint) {
+    const hd = document.getElementById(`hint-${id}`);
+    hd.textContent = `↳ ${hint}`;
+    hd.classList.remove('hidden');
+  }
+}
+
+function updateMapsLink(id, lat, lng) {
+  const a = document.getElementById(`maps-${id}`);
+  a.href = `https://www.google.com/maps?q=${lat},${lng}`;
+  a.classList.remove('hidden');
+}
+
+function updateProgress() {
+  const done = Object.keys(coords).length;
+  document.getElementById('progress-text').textContent = `${done} / ${CHURCHES.length}`;
+  document.getElementById('ok-count').textContent      = `${done} OK`;
+  document.getElementById('err-count').textContent     = `${CHURCHES.length - done} sin resultado`;
+  document.getElementById('progress-bar').style.width  = `${(done / CHURCHES.length) * 100}%`;
+}
+
+// ─── GEOCODING LOOP ───────────────────────────────────────────────────────────
+let running = false;
+let paused  = false;
+
+async function runGeocoding() {
+  running = true;
+  const remaining = CHURCHES.filter(c => !coords[c.id]).length;
+  document.getElementById('btn-start').disabled    = true;
+  document.getElementById('btn-start').textContent = `En progreso… (${remaining} pendientes)`;
+  document.getElementById('btn-pause').disabled    = false;
+  document.getElementById('btn-pause').className   =
+    'px-5 py-2 bg-amber-100 text-amber-800 rounded-lg font-semibold text-sm cursor-pointer hover:bg-amber-200 transition-colors';
+
+  for (let i = 0; i < CHURCHES.length; i++) {
+    if (!running) break;
+    while (paused) await sleep(300);
+
+    const c = CHURCHES[i];
+    if (coords[c.id]) continue;
+
+    setRow(c.id, 'active', '⏳ Buscando…');
+    document.getElementById(`row-${c.id}`).scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+    const queries = buildQueries(c);
+    let found = null;
+
+    for (const q of queries) {
+      // sleep is now inside nominatimCall — no extra sleep needed here
+      let hit = await nominatimQuery(q, true);
+      if (!hit) hit = await nominatimQuery(q, false);
+      if (hit) {
+        found = { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon), query: q, display: hit.display_name };
+        break;
+      }
+    }
+
+    if (found) {
+      // Store lat, lng AND the full OSM address for verification
+      coords[c.id] = { lat: found.lat, lng: found.lng, address: found.display };
+      document.getElementById(`lat-${c.id}`).value = found.lat.toFixed(6);
+      document.getElementById(`lng-${c.id}`).value = found.lng.toFixed(6);
+      updateMapsLink(c.id, found.lat, found.lng);
+      // Show address in the row — first 3 comma-separated parts is enough to verify
+      const shortDisplay = found.display.split(',').slice(0, 3).join(',').trim();
+      setRow(c.id, 'ok', '✓ Encontrado', shortDisplay);
+    } else {
+      setRow(c.id, 'error', '✗ No encontrado');
+    }
+
+    updateProgress();
+  }
+
+  running = false;
+  const stillMissing = CHURCHES.filter(c => !coords[c.id]).length;
+  const btn = document.getElementById('btn-start');
+  if (stillMissing > 0) {
+    btn.disabled    = false;
+    btn.textContent = `↩ Reintentar (${stillMissing} sin resultado)`;
+    btn.className   = 'px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-sm transition-colors';
+  } else {
+    btn.textContent = '✓ Completado';
+  }
+  document.getElementById('btn-pause').disabled  = true;
+  document.getElementById('btn-export').disabled = false;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+async function exportJSON() {
+  let timetables;
+  try {
+    const res = await fetch('./timetables.json');
+    if (!res.ok) throw new Error();
+    timetables = await res.json();
+  } catch {
+    alert('No se pudo cargar timetables.json.\nAsegúrate de abrir esta herramienta desde un servidor local (VS Code Live Server).');
+    return;
+  }
+
+  const result = timetables.map(record => {
+    const c = coords[record.id];
+    if (c) return {
+      ...record,
+      lat:     parseFloat(c.lat.toFixed(6)),
+      lng:     parseFloat(c.lng.toFixed(6)),
+      address: c.address || null,
+    };
+    return record;
+  });
+
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type:'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'timetables.json';
+  a.click();
+
+  const missing = CHURCHES.length - Object.keys(coords).length;
+  const msg = missing > 0
+    ? `✓ Exportado.\n\n${Object.keys(coords).length} iglesias con coordenadas exactas.\n${missing} sin resultado — usan centroide de zona.\n\nPara las que fallaron, abre el 🗺 de la fila y copia las coordenadas manualmente.`
+    : `✓ ¡Perfecto! Las ${Object.keys(coords).length} iglesias tienen coordenadas exactas.`;
+  alert(msg);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+buildTable();
+
+document.getElementById('btn-start').addEventListener('click', () => { if (!running) runGeocoding(); });
+document.getElementById('btn-pause').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('btn-pause').textContent = paused ? '▶ Continuar' : '⏸ Pausar';
+});
+document.getElementById('btn-export').addEventListener('click', exportJSON);
+</script>
+</body>
+</html>
