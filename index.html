@@ -301,9 +301,11 @@ function render() {
       { k:'sabados_visperas_festivos',  l:'Sábados/Vísperas' },
       { k:'domingos_festivos',          l:'Domingos/Festivos' },
     ].map(({ k, l }) => {
-      const r = c[k];
-      const v = isClosed(r) ? 'Cerrada temporalmente' : isNoMass(r) ? '–' : r;
-      return `<div class="text-xs"><span class="font-semibold text-stone-600">${l}: </span><span class="text-stone-500">${v}</span></div>`;
+      const r    = c[k];
+      const nota = c[`notas_${k}`];
+      const v    = isClosed(r) ? 'Cerrada temporalmente' : isNoMass(r) ? '–' : r;
+      const notaHtml = nota ? ` <span class="text-stone-400 italic">(${nota})</span>` : '';
+      return `<div class="text-xs"><span class="font-semibold text-stone-600">${l}: </span><span class="text-stone-500">${v}</span>${notaHtml}</div>`;
     }).join('');
 
     const card = document.createElement('details');
@@ -345,7 +347,7 @@ function render() {
 async function loadData() {
   let allRecords;
   try {
-    const res = await fetch('./timetables.json');
+    const res = await fetch('./timetables_plus.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     allRecords = await res.json();
   } catch (e) {
