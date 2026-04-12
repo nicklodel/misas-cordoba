@@ -76,7 +76,9 @@
     "parroquia_iglesia": "Monasterio de Sta. Marta (MM. Jerónimas)",
     "dias_laborables": "",
     "sabados_visperas_festivos": "",
-    "domingos_festivos": "13:00"
+    "domingos_festivos": "13:00",
+    "address": "Sta. Marta, 10, Centro, 14001 Córdoba"
+
   },
   {
     "temporada": "Verano",
