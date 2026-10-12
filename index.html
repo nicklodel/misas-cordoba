@@ -4,72 +4,178 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Horario de Misas en Córdoba" />
+  <meta id="theme-color" name="theme-color" content="#6b4220" />
   <title>Misas Córdoba</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: {
-              50:'#fdf6ee',100:'#fae9d4',200:'#f5d1a3',300:'#efb36a',
-              400:'#e8903a',500:'#e2731e',600:'#d45a14',700:'#b04212',
-              800:'#8c3416',900:'#722d15',
-            }
-          }
-        }
-      }
-    }
-  </script>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background:#f5f5f4; }
-    .chip { display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:9999px;font-size:.8rem;font-weight:500;cursor:pointer;transition:all .15s;user-select:none;border:none; }
-    .chip-active { background:#8c3416;color:white; }
-    .chip-inactive { background:white;color:#57534e;border:1px solid #e7e5e4; }
-    .chip-inactive:hover { border-color:#efb36a;color:#8c3416; }
-.time-pill { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:#fdf6ee;color:#7c2d12;font-size:.8rem;font-weight:600;border:1px solid #fae9d4; }
-    .zone-badge { display:inline-block;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600; }
-details > summary { list-style:none; }
-    details > summary::-webkit-details-marker { display:none; }
+    /* ─── PALETTE (shared warm tones + per-season accents) ───────────────────── */
+    :root {
+      --ink:#3b2414; --wood:#a0662f; --wood-dark:#6b4220;
+      --parch:#f8edd3; --parch-light:#fffaf0; --parch-dark:#ead7b0; --muted:#8a6a4a;
+      --danger:#b13e2b;
+    }
+    body[data-season=verano] {
+      --accent:#4f8a2b; --accent-dark:#2f5c17; --accent-light:#dcefc8; --pill:#fdeeb5;
+      --page-bg: linear-gradient(180deg, #eaf4dc 0%, #f6f1e2 60%);
+    }
+    body[data-season=invierno] {
+      --accent:#3d6fa3; --accent-dark:#22466e; --accent-light:#dbe9f7; --pill:#e3eefa;
+      --parch:#f3eee3; --parch-light:#fdfbf6; --parch-dark:#dfd6c4;
+      --page-bg: linear-gradient(180deg, #e3ecf7 0%, #f4f7fb 60%);
+    }
+
+    body {
+      font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--page-bg) fixed;
+      background-color: var(--parch-light);
+    }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ─── HEADER SCENE ─────────────────────────────────────────────────────── */
+    .scene { position:relative; height:160px; overflow:hidden; }
+    #scene-art svg { position:absolute; left:50%; bottom:0; transform:translateX(-50%); }
+    .sign {
+      display:inline-flex; align-items:center; gap:10px; padding:8px 16px 8px 10px;
+      background: rgba(255,250,240,.88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      border-radius:16px; box-shadow: 0 6px 18px rgba(30,20,10,.18);
+    }
+    .sign-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background: var(--accent); color:#fff; }
+    .sign-icon svg { width:18px; height:18px; }
+    .sign h1 { font-weight:800; font-size:1.3rem; line-height:1.1; letter-spacing:-.01em; }
+    .sign p  { font-size:.78rem; color: var(--muted); font-weight:600; }
+
+    .season-switch {
+      display:inline-flex; gap:2px; padding:4px; border-radius:9999px;
+      background: rgba(255,250,240,.88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 6px 18px rgba(30,20,10,.18);
+    }
+    .season-btn {
+      display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:9999px;
+      font-size:.85rem; font-weight:700; color: var(--muted); background:transparent; border:none; cursor:pointer;
+      white-space:nowrap; transition: background .2s, color .2s;
+    }
+    .season-btn:hover { color: var(--ink); }
+    .season-btn[aria-pressed=true] { background: var(--accent); color:#fff; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+    .season-btn svg { width:16px; height:16px; }
+
+    .snowflake { position:absolute; top:-6px; border-radius:50%; background:#fff; opacity:.85; animation: fall linear infinite; pointer-events:none; }
+    @keyframes fall { to { transform: translate(var(--drift), 172px); } }
+    .scene .cloud   { animation: drift 30s ease-in-out infinite alternate; }
+    .scene .twinkle { animation: twinkle 2.4s ease-in-out infinite; }
+    @keyframes drift   { to { transform: translateX(14px); } }
+    @keyframes twinkle { 50% { opacity:.25; } }
+    @media (prefers-reduced-motion: reduce) {
+      .snowflake, .scene .cloud, .scene .twinkle { animation:none; }
+      .snowflake { display:none; }
+    }
+
+    /* ─── FILTER PANEL ─────────────────────────────────────────────────────── */
+    .panel { background: var(--parch); border-bottom:1px solid var(--parch-dark); box-shadow:0 6px 16px rgba(60,36,20,.06); }
+    .label { font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color: var(--wood); }
+    .search-input {
+      width:100%; padding:9px 14px 9px 38px; border-radius:12px; font-size:.95rem;
+      background: var(--parch-light); color: var(--ink); border:1px solid var(--parch-dark);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-input::placeholder { color: var(--muted); }
+    .search-input:focus { outline:none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
     input[type=search]::-webkit-search-cancel-button { display:none; }
-    .card { background:white;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #f5f5f4;overflow:hidden; }
-    .map-btn { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:pointer;text-decoration:none;transition:background .15s; }
-    .map-btn:hover { background:#dbeafe; }
+
+    .chip {
+      display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:9999px;
+      font-size:.82rem; font-weight:700; cursor:pointer; user-select:none; transition: all .15s;
+    }
+    .chip-inactive { background: var(--parch-light); color: var(--ink); border:1px solid var(--parch-dark); }
+    .chip-inactive:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .chip-active { background: var(--accent); color:#fff; border:1px solid var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+    .link-btn { font-size:.8rem; font-weight:700; color: var(--accent-dark); }
+    .link-btn:hover { text-decoration: underline; }
+
+    .season-tag {
+      display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:9999px;
+      font-size:.75rem; font-weight:700; background: var(--accent-light); color: var(--accent-dark);
+    }
+    .season-tag svg { width:14px; height:14px; }
+
+    /* ─── CARDS ────────────────────────────────────────────────────────────── */
+    .card {
+      position:relative; background: var(--parch-light); border-radius:16px;
+      border:1px solid var(--parch-dark); box-shadow: 0 2px 10px rgba(60,36,20,.07);
+    }
+    .card summary { list-style:none; border-radius:16px; }
+    .card summary::-webkit-details-marker { display:none; }
+    .card summary:hover { background: rgba(255,255,255,.6); }
+    .card h2 { font-size:.98rem; font-weight:800; line-height:1.25; }
+    .card .addr { font-size:.78rem; color: var(--muted); }
+    .card .detail { background: var(--parch); border-top:1px dashed var(--parch-dark); border-radius:0 0 16px 16px; }
+    .card .chevron { width:16px; height:16px; color: var(--muted); transition: transform .2s; }
+    .card[open] .chevron { transform: rotate(180deg); }
+    body[data-season=invierno] .card::before {
+      content:''; position:absolute; left:14px; right:14px; top:-4px; height:9px; pointer-events:none;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='9'%3E%3Cpath d='M0 0H40V3Q35 9 30 4Q25 0 20 5Q15 9 10 4Q5 0 0 3Z' fill='%23ffffff'/%3E%3C/svg%3E") repeat-x;
+      filter: drop-shadow(0 1px 1px rgba(61,111,163,.25));
+    }
+
+    .time-pill {
+      display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:9999px;
+      font-size:.85rem; font-weight:800; font-variant-numeric: tabular-nums;
+      background: var(--pill); color: var(--ink); border:1px solid rgba(0,0,0,.05);
+    }
+    .time-pill svg { width:13px; height:13px; color: var(--wood); }
+    .zone-badge { display:inline-block; padding:1px 9px; border-radius:9999px; font-size:.72rem; font-weight:800; }
+    .closed { font-size:.85rem; font-weight:700; color: var(--danger); }
+    .quiet  { font-size:.85rem; color: var(--muted); }
+
+    .sched { font-size:.85rem; line-height:1.4; }
+    .sched b { color: var(--wood-dark); font-weight:800; }
+    .sched .nota { color: var(--muted); font-style: italic; }
+    .map-btn {
+      display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:9999px;
+      font-size:.78rem; font-weight:700; background: var(--wood); color:#fff; text-decoration:none; transition: background .15s;
+    }
+    .map-btn:hover { background: var(--wood-dark); }
+    .map-btn svg { width:13px; height:13px; }
+
+    footer.soft { color: var(--muted); border-top:1px solid var(--parch-dark); background: var(--parch); }
   </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen" data-season="invierno">
 
 <div id="app">
 
-  <!-- HEADER -->
-  <header class="bg-primary-800 text-white shadow-lg">
-    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-      <div class="flex-shrink-0 bg-primary-700 rounded-full p-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path d="M12 2v20M2 12h20" stroke-linecap="round"/>
-        </svg>
+  <!-- HEADER: illustrated scene, changes with the season -->
+  <header id="scene" class="scene">
+    <div id="scene-art" aria-hidden="true"></div>
+    <div id="snow" aria-hidden="true"></div>
+    <div class="relative h-full max-w-3xl mx-auto px-4 py-3 flex flex-col justify-between items-start">
+      <div class="sign">
+        <span id="sign-icon" class="sign-icon" aria-hidden="true"></span>
+        <div>
+          <h1>Misas Córdoba</h1>
+          <p id="result-count">Cargando…</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-xl font-bold tracking-tight">Misas Córdoba</h1>
-        <p id="result-count" class="text-primary-200 text-xs mt-0.5">Cargando…</p>
-      </div>
+      <div id="season-switch" class="season-switch" role="group" aria-label="Temporada"></div>
     </div>
   </header>
 
   <!-- STICKY FILTERS -->
-  <div class="bg-white border-b border-stone-200 shadow-sm sticky top-0 z-10">
+  <div class="panel sticky top-0 z-10">
     <div class="max-w-3xl mx-auto px-4 py-3 space-y-3">
 
       <!-- Search -->
       <div class="relative">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input id="search" type="search" placeholder="Buscar iglesia o parroquia…"
-          class="w-full pl-9 pr-4 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 bg-stone-50" />
+        <span id="search-icon" class="absolute left-3 top-1/2 -translate-y-1/2 flex" aria-hidden="true"></span>
+        <input id="search" type="search" placeholder="Buscar iglesia o parroquia…" class="search-input" />
       </div>
 
       <!-- Time of day -->
       <div>
-        <p class="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Horario</p>
+        <p class="label mb-1.5">Horario</p>
         <div id="time-filters" class="flex gap-1.5 flex-wrap">
           <button class="chip chip-active" data-time="all">Cualquier hora</button>
           <button class="chip chip-inactive" data-time="morning">Mañana <span class="opacity-60">6–12h</span></button>
@@ -82,8 +188,8 @@ details > summary { list-style:none; }
       <!-- Zones -->
       <div>
         <div class="flex justify-between items-center mb-1.5">
-          <p class="text-xs font-semibold text-stone-400 uppercase tracking-wide">Zona</p>
-          <button id="clear-zones" class="text-xs text-primary-600 hover:text-primary-800 hidden">Limpiar</button>
+          <p class="label">Zona</p>
+          <button id="clear-zones" class="link-btn hidden">Limpiar</button>
         </div>
         <div id="zone-filters" class="flex gap-1.5 flex-wrap"></div>
       </div>
@@ -91,8 +197,8 @@ details > summary { list-style:none; }
       <!-- Day type -->
       <div>
         <div class="flex items-center justify-between mb-1.5">
-          <p class="text-xs font-semibold text-stone-400 uppercase tracking-wide">Tipo de día</p>
-          <span id="season-badge" class="text-xs px-2 py-0.5 rounded-full font-medium"></span>
+          <p class="label">Tipo de día</p>
+          <span id="season-badge" class="season-tag"></span>
         </div>
         <div id="day-filters" class="flex gap-1.5 flex-wrap"></div>
       </div>
@@ -101,13 +207,13 @@ details > summary { list-style:none; }
   </div>
 
   <!-- RESULTS -->
-  <main class="max-w-3xl mx-auto px-4 py-4">
+  <main class="max-w-3xl mx-auto px-4 py-5">
     <div id="results" class="space-y-3">
-      <p class="text-center text-stone-400 py-12 text-sm">Cargando horarios…</p>
+      <div class="card p-5 text-center quiet">Cargando horarios…</div>
     </div>
   </main>
 
-  <footer class="text-center text-xs text-stone-400 py-4 border-t border-stone-200 mt-4">
+  <footer class="soft text-center text-xs py-4 mt-4">
     Horarios de Misas · Diócesis de Córdoba
   </footer>
 </div>
@@ -124,10 +230,181 @@ const CURRENT_TEMPORADA = getCurrentTemporada();
 // Updated after data loads to reflect what's actually shown (may differ from calendar season)
 let DISPLAYED_TEMPORADA = CURRENT_TEMPORADA;
 
-const TEMPORADA_STYLE = {
-  Verano:   { badge: 'bg-amber-100 text-amber-700',  icon: '☀️' },
-  Invierno: { badge: 'bg-blue-100 text-blue-700',    icon: '❄️' },
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const svgIcon = (body, attrs = '') =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${attrs}>${body}</svg>`;
+const ICON = {
+  sun:     svgIcon('<circle cx="12" cy="12" r="4.5" fill="#f7c235" stroke="#e0a020"/><path stroke="#e0a020" d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  snow:    svgIcon('<path stroke="#5b9bd5" d="M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>'),
+  clock:   svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  pin:     svgIcon('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
+  chevron: svgIcon('<polyline points="6 9 12 15 18 9"/>', 'class="chevron flex-shrink-0 mt-0.5"'),
+  search:  svgIcon('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>', 'width="16" height="16" style="color:var(--muted)"'),
+  cross:   svgIcon('<path stroke-width="2.6" d="M12 3v18M6.5 8.5h11"/>'),
 };
+const SEASON_ICON = { Verano: ICON.sun, Invierno: ICON.snow };
+
+// ─── HEADER SCENE ─────────────────────────────────────────────────────────────
+// Flat illustration on a 480×80 canvas, shown at 2× and centred; CSS bands extend it on wide screens.
+const SCENE = {
+  Verano: {
+    sky:['#7cc8f2','#cdeefc'], far:'#a6d395', near:'#7fbf62', ground:'#6fb24f', groundTop:'#8fcc6a', path:'#e2c48f',
+    wall:'#fdf7e6', wallShade:'#eadfc2', roof:'#cf6a48', glass:'#7cc4ec', door:'#8a5430', theme:'#7cc8f2',
+  },
+  Invierno: {
+    sky:['#1f2b55','#5a6ba3'], far:'#4a5d8f', near:'#cbd8ea', ground:'#eaf1f9', groundTop:'#ffffff', path:'#c3d1e3',
+    wall:'#ece8f2', wallShade:'#cfcde0', roof:'#9a5545', glass:'#ffcf5a', door:'#7a4421', theme:'#1f2b55',
+  },
+};
+
+function seeded(seed) {
+  return () => {
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function buildScene(season) {
+  const P = SCENE[season] || SCENE.Invierno;
+  const winter = season !== 'Verano';
+  const rnd = seeded(winter ? 11 : 7);
+  let s = '';
+  const add = str => { s += str; };
+  const circle = (cx, cy, r, fill, extra = '') => add(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" ${extra}/>`);
+  const rect = (x, y, w, h, fill, rx = 0) => add(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}"/>`);
+  const poly = (pts, fill) => add(`<polygon points="${pts}" fill="${fill}"/>`);
+  const path = (d, fill, extra = '') => add(`<path d="${d}" fill="${fill}" ${extra}/>`);
+  const cloud = (x, y, k, fill, op) => add(
+    `<g transform="translate(${x} ${y}) scale(${k})" fill="${fill}" opacity="${op}">` +
+    `<ellipse cx="11" cy="7" rx="11" ry="3.6"/><circle cx="7" cy="5" r="3.6"/><circle cx="13" cy="3.8" r="4.6"/><circle cx="18" cy="5.5" r="2.8"/></g>`);
+
+  // Sky
+  add(`<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${P.sky[0]}"/><stop offset="1" stop-color="${P.sky[1]}"/></linearGradient>` +
+      `<radialGradient id="glow"><stop offset="0" stop-color="#ffe9a0" stop-opacity=".9"/><stop offset="1" stop-color="#ffe9a0" stop-opacity="0"/></radialGradient></defs>`);
+  rect(0, 0, 480, 64, 'url(#sky)');
+
+  if (winter) {
+    for (let i = 0; i < 60; i++) {
+      circle((rnd() * 480).toFixed(1), (rnd() * 40).toFixed(1), (.35 + rnd() * .45).toFixed(2),
+             rnd() < .3 ? '#ffe9a8' : '#ffffff', rnd() < .4 ? `class="twinkle" style="animation-delay:-${(rnd() * 3).toFixed(1)}s"` : '');
+    }
+    circle(405, 15, 16, '#f6f0cf', 'opacity=".12"');
+    circle(405, 15, 7, '#f6f0cf');
+    circle(402.5, 13, 1.4, '#e4dcb0'); circle(407.5, 17, 1, '#e4dcb0');
+    add('<g class="cloud">'); cloud(60, 12, 1.3, '#7b8bba', .45); cloud(225, 5, 1, '#7b8bba', .35); add('</g>');
+  } else {
+    circle(405, 17, 20, 'url(#glow)');
+    circle(405, 17, 8.5, '#ffd54a');
+    add('<g class="cloud">'); cloud(40, 9, 1.4, '#ffffff', .95); cloud(150, 17, 1, '#ffffff', .9); cloud(300, 6, 1.2, '#ffffff', .9); add('</g>');
+    [[180, 14], [189, 10], [197, 15]].forEach(([x, y]) =>
+      path(`M${x} ${y} q1.5 -1.6 3 0 q1.5 -1.6 3 0`, 'none', 'stroke="#3b2414" stroke-width=".6" stroke-linecap="round"'));
+  }
+
+  // Sierra hills and ground
+  path('M0 64 C 50 52, 110 46, 170 53 S 290 43, 350 51 S 440 49, 480 64 Z', P.far);
+  path('M0 64 C 40 58, 100 55, 160 59 S 280 53, 340 58 S 430 56, 480 64 Z', P.near);
+  rect(0, 63, 480, 17, P.ground);
+  rect(0, 63, 480, 1.4, P.groundTop);
+
+  const bx = 285;                                            // church origin (nave left wall)
+  path(`M${bx + 12.5} 64 L${bx + 17.5} 64 L${bx + 27} 80 L${bx + 3} 80 Z`, P.path);
+
+  // Trees behind the church
+  const orangeTree = x => {
+    rect(x - 1, 52, 2, 12, '#7a5230', .8);
+    circle(x, 46, 8, '#4f9a3c');
+    circle(x - 2.5, 43.5, 4.2, '#6fb854', 'opacity=".85"');
+    [[-4, -1], [3, -3.5], [2.5, 2.5], [-1, 4], [5, 1]].forEach(([dx, dy]) => circle(x + dx, 46 + dy, 1.1, '#f39a2b'));
+  };
+  const pine = x => {
+    rect(x - 1, 58, 2, 6, '#5b3a1e', .6);
+    for (let t = 0; t < 3; t++) {
+      const top = 38 + t * 6, half = 5 + t * 2;
+      poly(`${x},${top} ${x - half},${top + 8} ${x + half},${top + 8}`, '#2f6b4f');
+      path(`M${x} ${top} L${x - 2.6 - t} ${top + 3.4} Q${x - 1} ${top + 2.4} ${x} ${top + 3.2} Q${x + 1} ${top + 2.4} ${x + 2.6 + t} ${top + 3.4} Z`, '#ffffff');
+    }
+  };
+  if (winter) [40, 70, 130, 190, 350, 372, 430, 458].forEach(pine);
+  else        [60, 118, 176, 258, 345, 400, 452].forEach(orangeTree);
+
+  // The church (whitewashed, Córdoba style)
+  rect(bx - 12, 26, 12, 38, P.wall); rect(bx - 3, 26, 3, 38, P.wallShade);
+  poly(`${bx - 13.5},26.5 ${bx - 6},16.5 ${bx + 1.5},26.5`, P.roof);
+  if (winter) poly(`${bx - 13.5},26.5 ${bx - 6},16.5 ${bx + 1.5},26.5 ${bx - 0.5},26.5 ${bx - 6},19.2 ${bx - 11.5},26.5`, '#ffffff');
+  rect(bx - 6.75, 8.5, 1.5, 8.5, '#e6b23a', .4); rect(bx - 9, 11, 6, 1.5, '#e6b23a', .4);
+  path(`M${bx - 9} 37 V32.5 a3 3 0 0 1 6 0 V37 Z`, '#3a2a20');
+  circle(bx - 6, 34.2, 1.6, '#e6b23a');
+  path(`M${bx - 7.5} 51 V46.5 a1.5 1.5 0 0 1 3 0 V51 Z`, P.glass);
+  rect(bx, 44, 30, 20, P.wall); rect(bx + 25, 44, 5, 20, P.wallShade);
+  poly(`${bx - 2},45 ${bx + 15},34.5 ${bx + 32},45`, P.roof);
+  if (winter) poly(`${bx - 2},45 ${bx + 15},34.5 ${bx + 32},45 ${bx + 29},45 ${bx + 15},37 ${bx + 1},45`, '#ffffff');
+  circle(bx + 15, 48.5, 2.6, P.glass, `stroke="${P.wallShade}" stroke-width=".7"`);
+  [bx + 4, bx + 23].forEach(x => path(`M${x} 55 V50.5 a1.5 1.5 0 0 1 3 0 V55 Z`, P.glass));
+  path(`M${bx + 12} 64 V57.5 a3 3 0 0 1 6 0 V64 Z`, P.door);
+  circle(bx + 16.4, 60.5, .45, '#e6b23a');
+
+  if (winter) {
+    [bx + 3.5, bx + 22.5].forEach(x => rect(x, 54.6, 4, 1, '#ffffff', .5));
+    circle(bx + 15, 58.6, 1.7, 'none', 'stroke="#2f6b3f" stroke-width="1.1"');
+    circle(bx + 15, 60.2, .6, '#c0392b');
+    add(`<ellipse cx="${bx - 6}" cy="64" rx="9" ry="2" fill="#ffffff"/><ellipse cx="${bx + 26}" cy="64" rx="8" ry="1.8" fill="#ffffff"/>`);
+    // Lamp post
+    circle(262, 45.5, 8, 'url(#glow)');
+    rect(261.6, 46, .9, 18, '#2a1f2e'); rect(260.5, 43.5, 3, 3, '#ffcf5a', .6);
+    // Snowman
+    const x = 325;
+    circle(x, 58.5, 5.6, '#ffffff', 'stroke="#b9c8dc" stroke-width=".6"');
+    circle(x, 50, 4.2, '#ffffff', 'stroke="#b9c8dc" stroke-width=".6"');
+    circle(x - 1.4, 49, .5, '#2a1f2e'); circle(x + 1.4, 49, .5, '#2a1f2e');
+    poly(`${x},50.2 ${x + 3},50.8 ${x},51.3`, '#f08a2b');
+    rect(x - 4, 53.4, 8, 1.6, '#c0392b', .8); rect(x + 1.2, 54.4, 1.6, 3.4, '#c0392b', .6);
+    rect(x - 4, 45.6, 8, 1, '#2a1f2e', .5); rect(x - 2.8, 41.6, 5.6, 4.4, '#2a1f2e', .6); rect(x - 2.8, 44.6, 5.6, .9, '#c0392b');
+    path(`M${x - 4} 51.5 L${x - 9} 49`, 'none', 'stroke="#7a5230" stroke-width=".8" stroke-linecap="round"');
+    path(`M${x + 4} 51.5 L${x + 9} 49`, 'none', 'stroke="#7a5230" stroke-width=".8" stroke-linecap="round"');
+  } else {
+    // Geranium pots, like the Córdoba patios
+    [bx + 2, bx + 23].forEach(x => {
+      add(`<ellipse cx="${x + 2}" cy="58.5" rx="3" ry="2" fill="#4f9a3c"/>`);
+      path(`M${x} 59.5 h4 l-.6 4.5 h-2.8 Z`, '#c4643f');
+      circle(x + .8, 57.6, .8, '#e8443a'); circle(x + 2.6, 57, .8, '#ff6f61'); circle(x + 3.6, 58.4, .7, '#e8443a');
+    });
+    // Sunflowers
+    [[320, 12], [325, 15], [330, 11]].forEach(([x, h]) => {
+      path(`M${x} 64 V${64 - h}`, 'none', 'stroke="#4f9a3c" stroke-width="1" stroke-linecap="round"');
+      add(`<ellipse cx="${x + 1.6}" cy="59.5" rx="1.8" ry=".8" fill="#4f9a3c"/>`);
+      circle(x, 64 - h - 1, 2.8, '#f7c235');
+      circle(x, 64 - h - 1, 1.2, '#7a4a12');
+    });
+  }
+
+  return `<svg viewBox="0 0 480 80" width="960" height="160">${s}</svg>`;
+}
+
+function applySeasonTheme(season) {
+  const P = SCENE[season] || SCENE.Invierno;
+  document.body.dataset.season = season.toLowerCase();
+  document.getElementById('theme-color').content = P.theme;
+  // CSS bands continue the scene beyond the 960px drawing on wide screens
+  document.getElementById('scene').style.background =
+    `linear-gradient(to bottom, ${P.sky[0]} 0, ${P.sky[1]} 126px, ${P.groundTop} 126px, ${P.groundTop} 129px, ${P.ground} 129px)`;
+  document.getElementById('scene-art').innerHTML = buildScene(season);
+
+  const snow = document.getElementById('snow');
+  snow.innerHTML = '';
+  if (season === 'Invierno') {
+    const rnd = seeded(3);
+    for (let i = 0; i < 40; i++) {
+      const f = document.createElement('span');
+      const size = (2 + rnd() * 3).toFixed(1);
+      f.className = 'snowflake';
+      f.style.cssText = `left:${(rnd() * 100).toFixed(1)}%;width:${size}px;height:${size}px;` +
+        `--drift:${(rnd() * 40 - 20) | 0}px;animation-duration:${(6 + rnd() * 6).toFixed(1)}s;animation-delay:-${(rnd() * 10).toFixed(1)}s`;
+      snow.appendChild(f);
+    }
+  }
+}
 
 // ─── ZONE CONFIG ─────────────────────────────────────────────────────────────
 const ZONE_SHORT = {
@@ -140,15 +417,16 @@ const ZONE_SHORT = {
   "ZONA LEVANTE":                               "Levante",
   "ZONA FUENSANTA – CAÑERO – LEVANTE SUR":      "Fuensanta",
 };
+// [background, text] — warm, earthy tones
 const ZONE_COLOR = {
-  "ZONA CATEDRAL CASCO HISTÓRICO":              "bg-amber-100 text-amber-800",
-  "ZONA CENTRO":                                "bg-blue-100 text-blue-800",
-  "ZONA SIERRA":                                "bg-green-100 text-green-800",
-  "ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE":     "bg-teal-100 text-teal-800",
-  "ZONA SECTOR SUR":                            "bg-purple-100 text-purple-800",
-  "ZONA NOROESTE":                              "bg-rose-100 text-rose-800",
-  "ZONA LEVANTE":                               "bg-orange-100 text-orange-800",
-  "ZONA FUENSANTA – CAÑERO – LEVANTE SUR":      "bg-cyan-100 text-cyan-800",
+  "ZONA CATEDRAL CASCO HISTÓRICO":              ['#f9e2b0', '#7a4a12'],
+  "ZONA CENTRO":                                ['#d3e6f6', '#1f4f7a'],
+  "ZONA SIERRA":                                ['#d8eec4', '#2f6a1e'],
+  "ZONA CIUDAD JARDÍN – PARQUE CRUZ CONDE":     ['#c8ece4', '#1d6357'],
+  "ZONA SECTOR SUR":                            ['#e6dbf5', '#55308a'],
+  "ZONA NOROESTE":                              ['#f8d6d9', '#8a2a35'],
+  "ZONA LEVANTE":                               ['#fbdcc0', '#8a4512'],
+  "ZONA FUENSANTA – CAÑERO – LEVANTE SUR":      ['#d0eef4', '#1b6070'],
 };
 
 // ─── ADDRESS HELPER ───────────────────────────────────────────────────────────
@@ -162,8 +440,9 @@ function shortAddress(address) {
 }
 
 // ─── TIME HELPERS ─────────────────────────────────────────────────────────────
+const CLOSED_RE = /(cerrada?|suspendida)\s+temporalmente/i;
 function extractTimes(raw) {
-  if (!raw || /cerrada?\s+temporalmente/i.test(raw)) return [];
+  if (!raw || CLOSED_RE.test(raw)) return [];
   const re = /\b(\d{1,2}):(\d{2})\b/g;
   const out = []; const seen = new Set(); let m;
   while ((m = re.exec(raw)) !== null) {
@@ -172,7 +451,7 @@ function extractTimes(raw) {
   }
   return out;
 }
-function isClosed(raw) { return /cerrada?\s+temporalmente/i.test(raw||''); }
+function isClosed(raw) { return CLOSED_RE.test(raw||''); }
 function isNoMass(raw) { return !raw || raw.trim() === ''; }
 function matchesTime(times, tod) {
   if (tod === 'all') return true;
@@ -192,8 +471,10 @@ function mapsUrl(church) {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let CHURCHES = [];
-let ZONES    = [];
+let ALL_RECORDS = [];
+let TEMPORADAS  = [];
+let CHURCHES    = [];
+let ZONES       = [];
 
 const state = {
   dayType:   TODAY_DOW === 0 ? 'sunday' : TODAY_DOW === 6 ? 'saturday' : 'weekday',
@@ -208,6 +489,33 @@ function getRaw(c) {
        : c.domingos_festivos;
 }
 
+
+// ─── SEASON SWITCH ────────────────────────────────────────────────────────────
+function setTemporada(t) {
+  DISPLAYED_TEMPORADA = t;
+  CHURCHES = ALL_RECORDS.filter(r => r.temporada === t);
+  ZONES    = [...new Set(CHURCHES.map(r => r.zona))];
+  // Drop selected zones that don't exist in this season
+  [...state.zones].forEach(z => { if (!ZONES.includes(z)) state.zones.delete(z); });
+  document.getElementById('clear-zones').classList.toggle('hidden', state.zones.size === 0);
+  applySeasonTheme(t);
+  render();
+}
+
+function buildSeasonSwitch() {
+  const el = document.getElementById('season-switch');
+  el.innerHTML = '';
+  el.classList.toggle('hidden', TEMPORADAS.length < 2);
+  TEMPORADAS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'season-btn';
+    btn.setAttribute('aria-pressed', t === DISPLAYED_TEMPORADA);
+    btn.title = t === CURRENT_TEMPORADA ? `${t} (temporada actual)` : t;
+    btn.innerHTML = `${SEASON_ICON[t] || ''}<span>${t}</span>`;
+    btn.onclick = () => { if (t !== DISPLAYED_TEMPORADA) setTemporada(t); };
+    el.appendChild(btn);
+  });
+}
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 function buildZoneFilters() {
@@ -248,11 +556,9 @@ function render() {
     btn.className = 'chip ' + (state.timeOfDay === btn.dataset.time ? 'chip-active' : 'chip-inactive');
   });
 
-  const style = TEMPORADA_STYLE[DISPLAYED_TEMPORADA] || TEMPORADA_STYLE.Invierno;
-  const badge = document.getElementById('season-badge');
-  badge.className = `text-xs px-2 py-0.5 rounded-full font-medium ${style.badge}`;
-  badge.textContent = `${style.icon} ${DISPLAYED_TEMPORADA}`;
+  document.getElementById('season-badge').innerHTML = `${SEASON_ICON[DISPLAYED_TEMPORADA] || ''}${DISPLAYED_TEMPORADA}`;
 
+  buildSeasonSwitch();
   buildZoneFilters();
   buildDayFilters();
 
@@ -275,7 +581,7 @@ function render() {
   container.innerHTML = '';
 
   if (results.length === 0) {
-    container.innerHTML = `<div class="text-center py-16 text-stone-400"><p class="text-lg font-medium">Sin resultados</p><p class="text-sm mt-1">Prueba a cambiar los filtros</p></div>`;
+    container.innerHTML = `<div class="card text-center py-10"><p class="text-lg font-bold">Sin resultados</p><p class="quiet mt-1">Prueba a cambiar los filtros</p></div>`;
     return;
   }
 
@@ -284,17 +590,17 @@ function render() {
     const closed = isClosed(raw);
     const noMass = isNoMass(raw);
     const times  = extractTimes(raw);
-    const zColor = ZONE_COLOR[c.zona] || 'bg-stone-100 text-stone-700';
+    const [zBg, zFg] = ZONE_COLOR[c.zona] || ['#eee3cc', '#5b3a1e'];
     const zShort = ZONE_SHORT[c.zona] || c.zona;
     const addr   = shortAddress(c.address);
 
     const timesHtml = closed
-      ? `<span class="text-xs text-red-600 font-medium">⚠ Cerrada temporalmente</span>`
+      ? `<span class="closed">⚠ ${raw}</span>`
       : noMass
-      ? `<span class="text-xs text-stone-400 italic">Sin misa este día</span>`
+      ? `<span class="quiet">Sin misa este día</span>`
       : times.length === 0
-      ? `<span class="text-xs text-stone-400 italic">Ver horario completo</span>`
-      : times.map(t => `<span class="time-pill">🕐 ${t.time}</span>`).join('');
+      ? `<span class="quiet">Ver horario completo</span>`
+      : times.map(t => `<span class="time-pill">${ICON.clock}${t.time}</span>`).join('');
 
     const allSchedule = [
       { k:'dias_laborables',           l:'Laborables' },
@@ -303,48 +609,48 @@ function render() {
     ].map(({ k, l }) => {
       const r    = c[k];
       const nota = c[`notas_${k}`];
-      const v    = isClosed(r) ? 'Cerrada temporalmente' : isNoMass(r) ? '–' : r;
-      const notaHtml = nota ? ` <span class="text-stone-400 italic">(${nota})</span>` : '';
-      return `<div class="text-xs"><span class="font-semibold text-stone-600">${l}: </span><span class="text-stone-500">${v}</span>${notaHtml}</div>`;
+      const v    = isNoMass(r) ? '–' : r;
+      const notaHtml = nota ? ` <span class="nota">(${nota})</span>` : '';
+      return `<div class="sched"><b>${l}: </b><span>${v}</span>${notaHtml}</div>`;
     }).join('');
 
     const card = document.createElement('details');
     card.className = 'card';
     card.innerHTML = `
-      <summary class="px-4 py-3 flex items-start gap-3 cursor-pointer active:bg-stone-50 select-none">
+      <summary class="px-4 py-3 flex items-start gap-3 cursor-pointer select-none">
         <div class="flex-1 min-w-0">
           <div class="flex items-start justify-between gap-2">
-            <h2 class="text-sm font-semibold text-stone-800 leading-snug">${c.parroquia_iglesia}</h2>
-            <svg class="chevron flex-shrink-0 mt-0.5 w-4 h-4 text-stone-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <h2>${c.parroquia_iglesia}</h2>
+            ${ICON.chevron}
           </div>
-          <div class="flex items-center gap-1.5 mt-1 flex-wrap">
-            <svg class="w-3 h-3 text-stone-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span class="zone-badge ${zColor}">${zShort}</span>
+          <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <span class="zone-badge" style="background:${zBg};color:${zFg}">${zShort}</span>
           </div>
-          ${addr ? `<p class="mt-1 text-xs text-stone-400 leading-snug truncate">${addr}</p>` : ''}
-          <div class="mt-2 flex flex-wrap gap-1.5">${timesHtml}</div>
+          ${addr ? `<p class="addr mt-1 leading-snug truncate">${addr}</p>` : ''}
+          <div class="mt-2 flex flex-wrap gap-1.5 items-center">${timesHtml}</div>
         </div>
       </summary>
-      <div class="border-t border-stone-100 px-4 py-3 bg-stone-50 space-y-3">
+      <div class="detail px-4 py-3 space-y-2">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs font-semibold text-stone-400 uppercase tracking-wide">Horario · <span class="normal-case">${DISPLAYED_TEMPORADA}</span></p>
+          <p class="label">Horario · <span class="normal-case">${DISPLAYED_TEMPORADA}</span></p>
           <a href="${mapsUrl(c)}" target="_blank" rel="noopener noreferrer" class="map-btn flex-shrink-0" onclick="event.stopPropagation()">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            ${ICON.pin}
             Ver en Maps
           </a>
         </div>
         ${allSchedule}
       </div>
     `;
-    card.addEventListener('toggle', () => {
-      card.querySelector('.chevron').style.transform = card.open ? 'rotate(180deg)' : '';
-    });
     container.appendChild(card);
   });
 }
 
 // ─── LOAD DATA ────────────────────────────────────────────────────────────────
 async function loadData() {
+  document.getElementById('sign-icon').innerHTML   = ICON.cross;
+  document.getElementById('search-icon').innerHTML = ICON.search;
+  applySeasonTheme(CURRENT_TEMPORADA);
+
   let allRecords;
   try {
     const res = await fetch('./timetables_plus.json');
@@ -352,24 +658,19 @@ async function loadData() {
     allRecords = await res.json();
   } catch (e) {
     document.getElementById('results').innerHTML = `
-      <div class="card p-5 text-sm text-stone-600 space-y-2">
-        <p class="font-semibold text-red-600">⚠ No se pudo cargar timetables.json</p>
+      <div class="card p-5 text-sm space-y-2">
+        <p class="font-bold closed">⚠ No se pudo cargar timetables.json</p>
         <p>El navegador bloquea la carga de archivos locales cuando se abre directamente desde el explorador.</p>
-        <p class="font-medium">Solución: abre la carpeta en VS Code → botón derecho en <code class="bg-stone-100 px-1 rounded">index.html</code> → <em>Open with Live Server</em>.</p>
-        <p class="text-xs text-stone-400">O ejecuta <code class="bg-stone-100 px-1 rounded">python -m http.server 8080</code> en esta carpeta.</p>
+        <p class="font-semibold">Solución: abre la carpeta en VS Code → botón derecho en <code>index.html</code> → <em>Open with Live Server</em>.</p>
+        <p class="quiet">O ejecuta <code>python -m http.server 8080</code> en esta carpeta.</p>
       </div>`;
     document.getElementById('result-count').textContent = 'Error al cargar';
     return;
   }
 
-  let records = allRecords.filter(r => r.temporada === CURRENT_TEMPORADA);
-  if (records.length === 0) {
-    records = allRecords;
-    DISPLAYED_TEMPORADA = allRecords[0]?.temporada || CURRENT_TEMPORADA;
-  }
-
-  CHURCHES = records;
-  ZONES    = [...new Set(records.map(r => r.zona))];
+  ALL_RECORDS = allRecords;
+  TEMPORADAS  = ['Verano', 'Invierno'].filter(t => allRecords.some(r => r.temporada === t));
+  const initial = TEMPORADAS.includes(CURRENT_TEMPORADA) ? CURRENT_TEMPORADA : (TEMPORADAS[0] || CURRENT_TEMPORADA);
 
   document.getElementById('search').addEventListener('input', e => { state.search = e.target.value; render(); });
   document.querySelectorAll('#time-filters button').forEach(btn => {
@@ -381,7 +682,7 @@ async function loadData() {
     render();
   });
 
-  render();
+  setTemporada(initial);
 }
 
 loadData();
